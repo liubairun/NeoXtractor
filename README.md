@@ -19,7 +19,7 @@ Download the latest release at [GitHub Releases](https://github.com/MarcosVLl2/N
 1. Run `neoxtractor.exe` directly to start in GUI mode.
 2. Some games' NPK (EXPK) requires XOR key to be set. We have default profile for Onmyoji currently. To set XOR key, create a new config in Config Manager.
 ![Config Manager tutorial](assets/set-xor-key.png)
-3. Open the NPK file.
+3. Open the NPK file. IDX/WPK archives are also supported and can be opened in the same way.
 
 #### Introduction
 
@@ -46,7 +46,15 @@ Within the file list area, you can right click to operate on the selected entrie
 
 ### CLI
 
-Command-line interface is still being worked on.
+Extract WPK archives from the command line:
+
+```bash
+python main.py wpk <IDX_OR_WPK_PATH> [WPK_PATH] [-k KEY] [-o OUTPUT_DIR]
+```
+
+Provide either the `.idx` or `.wpk` file (or both). When only one path is
+given the companion file is located automatically. Use `-k`/`--key` to supply a
+decryption key when required and `-o`/`--output` to select the output directory.
 
 ## Development
 
