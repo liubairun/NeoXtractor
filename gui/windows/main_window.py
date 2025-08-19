@@ -9,7 +9,9 @@ from core.config import Config
 from core.logger import get_logger
 from core.npk.enums import NPKEntryFileCategories
 from core.npk.npk_file import NPKFile
-from core.npk.class_types import NPKEntry, NPKEntryDataFlags, NPKReadOptions
+from core.npk.class_types import NPKEntry, NPKReadOptions
+from core.wpk.wpk_file import WPKFile
+from core.wpk.class_types import WPKEntry
 from gui.config_manager import ConfigManager
 from gui.models.npk_file_model import NPKFileModel
 from gui.npk_entry_filter import NPKEntryFilter
@@ -17,6 +19,7 @@ from gui.settings_manager import SettingsManager
 from gui.utils.config import save_config_manager_to_settings
 from gui.utils.viewer import ALL_VIEWERS, find_best_viewer, get_viewer_display_name
 from gui.widgets.npk_file_list import NPKFileList
+from gui.widgets.wpk_file_list import WPKFileList
 from gui.widgets.preview_widget import PreviewWidget
 from gui.windows.about_window import AboutWindow
 from gui.windows.config_manager import ConfigManagerWindow
@@ -72,18 +75,28 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.control_layout.addLayout(self.config_section)
 
-        self.list_widget = NPKFileList(self)
-        self.list_widget.preview_entry.connect(lambda _row, entry: self.preview_widget.set_file(entry))
-        def open_tab_window_for_entry(_row: int, entry: NPKEntry, viewer: type | None = None):
+        self.npk_list_widget = NPKFileList(self)
+        self.wpk_list_widget = WPKFileList(self)
+        self.list_widget: NPKFileList | WPKFileList = self.npk_list_widget
+
+        def open_tab_window_for_entry(
+            _row: int, entry: NPKEntry | WPKEntry, viewer: type | None = None
+        ):
             if viewer is None:
-                viewer = find_best_viewer(entry.extension, bool(entry.data_flags & NPKEntryDataFlags.TEXT))
+                text_flag = type(entry.data_flags).TEXT
+                viewer = find_best_viewer(entry.extension, bool(entry.data_flags & text_flag))
             wnd = self._get_tab_window_for_viewer(viewer)
             wnd.load_file(entry.data, entry.filename)
             wnd.show()
-        self.list_widget.open_entry.connect(open_tab_window_for_entry)
-        self.list_widget.open_entry_with.connect(open_tab_window_for_entry)
 
-        self.filter = NPKEntryFilter(self.list_widget)
+        for widget in (self.npk_list_widget, self.wpk_list_widget):
+            widget.preview_entry.connect(
+                lambda _row, entry, w=widget: self.preview_widget.set_file(entry)
+            )
+            widget.open_entry.connect(open_tab_window_for_entry)
+            widget.open_entry_with.connect(open_tab_window_for_entry)
+
+        self.filter = NPKEntryFilter(self.npk_list_widget)
 
         self.filter_section = QtWidgets.QVBoxLayout()
 
@@ -140,7 +153,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.filter_section.addWidget(self.mesh_biped_head_filter_checkbox)
 
         self.control_layout.addLayout(self.filter_section)
-        self.control_layout.addWidget(self.list_widget)
+        self.control_layout.addWidget(self.npk_list_widget)
+        self.wpk_list_widget.setVisible(False)
+        self.control_layout.addWidget(self.wpk_list_widget)
 
         self.progress_bar = QtWidgets.QProgressBar(self)
         self.progress_bar.setVisible(False)
@@ -198,7 +213,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(self.central_widget)
 
         self.open_file_action: QtGui.QAction
+        self.open_wpk_action: QtGui.QAction
         self.unload_npk_action: QtGui.QAction
+        self.unload_wpk_action: QtGui.QAction
 
         def file_menu() -> QtWidgets.QMenu:
             menu = QtWidgets.QMenu(title="File")
@@ -206,7 +223,7 @@ class MainWindow(QtWidgets.QMainWindow):
             open_file = QtGui.QAction(
                 self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DirOpenIcon),
                 "Open File",
-                self
+                self,
             )
             open_file.setStatusTip("Open a NPK file.")
             open_file.setShortcut("Ctrl+O")
@@ -217,14 +234,14 @@ class MainWindow(QtWidgets.QMainWindow):
                     QtWidgets.QMessageBox.warning(
                         self,
                         "No Config Selected",
-                        "Please select a config before opening a file."
+                        "Please select a config before opening a file.",
                     )
                     return
                 file_path, _ = QtWidgets.QFileDialog.getOpenFileName(
                     self,
                     "Open NPK File",
                     "",
-                    "NPK Files (*.npk);;All Files (*)"
+                    "NPK Files (*.npk);;All Files (*)",
                 )
                 if file_path:
                     self.load_npk(file_path)
@@ -232,10 +249,31 @@ class MainWindow(QtWidgets.QMainWindow):
             open_file.triggered.connect(open_file_dialog)
             self.open_file_action = open_file
 
+            open_wpk = QtGui.QAction(
+                self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DirOpenIcon),
+                "Open IDX/WPK File…",
+                self,
+            )
+            open_wpk.setStatusTip("Open an IDX/WPK file.")
+            menu.addAction(open_wpk)
+
+            def open_wpk_dialog():
+                file_path, _ = QtWidgets.QFileDialog.getOpenFileName(
+                    self,
+                    "Open IDX/WPK File",
+                    "",
+                    "IDX/WPK Files (*.idx *.wpk);;All Files (*)",
+                )
+                if file_path:
+                    self.load_wpk(file_path)
+
+            open_wpk.triggered.connect(open_wpk_dialog)
+            self.open_wpk_action = open_wpk
+
             unload_npk = QtGui.QAction(
                 self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DialogCancelButton),
                 "Unload NPK",
-                self
+                self,
             )
             unload_npk.setStatusTip("Unload the current NPK file.")
             unload_npk.setShortcut("Ctrl+W")
@@ -243,6 +281,17 @@ class MainWindow(QtWidgets.QMainWindow):
             unload_npk.triggered.connect(self.unload_npk)
             menu.addAction(unload_npk)
             self.unload_npk_action = unload_npk
+
+            unload_wpk = QtGui.QAction(
+                self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DialogCancelButton),
+                "Unload WPK",
+                self,
+            )
+            unload_wpk.setStatusTip("Unload the current WPK file.")
+            unload_wpk.setEnabled(False)
+            unload_wpk.triggered.connect(self.unload_wpk)
+            menu.addAction(unload_wpk)
+            self.unload_wpk_action = unload_wpk
 
             menu.addSeparator()
 
@@ -333,11 +382,31 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.setWindowTitle("NeoXtractor")
         self.app.setProperty("npk_file", None)
-        self.list_widget.refresh_npk_file()
+        self.list_widget = self.npk_list_widget
+        self.npk_list_widget.refresh_npk_file()
         self.extract_button_widget.setVisible(False)
         self.preview_widget.clear()
         self.unload_npk_action.setEnabled(False)
         get_logger().info("NPK file unloaded.")
+
+    def unload_wpk(self):
+        """Unload the WPK file."""
+
+        if self.app.property("wpk_file") is None:
+            return
+
+        self.setWindowTitle("NeoXtractor")
+        self.app.setProperty("wpk_file", None)
+        self.wpk_list_widget.refresh_wpk_file()
+        self.wpk_list_widget.setVisible(False)
+        self.npk_list_widget.setVisible(True)
+        self.list_widget = self.npk_list_widget
+        self.filter_section.setVisible(True)
+        self.extract_button_widget.setVisible(False)
+        self.preview_widget.clear()
+        self.unload_wpk_action.setEnabled(False)
+        self.open_wpk_action.setEnabled(True)
+        get_logger().info("WPK file unloaded.")
 
     def refresh_config_list(self):
         """Refresh the config list from the config manager."""
@@ -370,11 +439,14 @@ class MainWindow(QtWidgets.QMainWindow):
             self.config = self.config_manager.configs[index]
 
         if previous_config != self.config:
-            if previous_config is not None and self.app.property("npk_file") is not None and \
+            if previous_config is not None and (
+                self.app.property("npk_file") is not None
+                or self.app.property("wpk_file") is not None
+            ) and \
                 QtWidgets.QMessageBox.warning(
                     self,
                     "NPK File loaded",
-                    "Changing the config will unload the NPK file.\n" +
+                    "Changing the config will unload the loaded file.\n" +
                     "Are you sure you want to continue?",
                     buttons=QtWidgets.QMessageBox.StandardButton.Ok | QtWidgets.QMessageBox.StandardButton.Cancel,
                     defaultButton=QtWidgets.QMessageBox.StandardButton.Cancel,
@@ -384,7 +456,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.active_config.setCurrentIndex(self.active_config.findText(previous_config.name))
                 return
 
-            self.unload_npk()
+            if self.app.property("npk_file") is not None:
+                self.unload_npk()
+            if self.app.property("wpk_file") is not None:
+                self.unload_wpk()
 
             self.app.setProperty("game_config", self.config)
 
@@ -395,11 +470,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.unload_npk()
 
+        self.list_widget = self.npk_list_widget
+        self.npk_list_widget.setVisible(True)
+        self.wpk_list_widget.setVisible(False)
+        self.filter_section.setVisible(True)
+        if self.filter is None:
+            self.filter = NPKEntryFilter(self.npk_list_widget)
+
         self._loading_cancelled = False
 
         self.setWindowTitle(f"NeoXtractor - {os.path.basename(path)}")
 
         self.open_file_action.setEnabled(False)
+        self.open_wpk_action.setEnabled(True)
         self.active_config.setEnabled(False)
         self.progress_bar.setVisible(True)
 
@@ -436,6 +519,33 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.cancel_button.setVisible(True)
 
+    def load_wpk(self, path: str):
+        """Load a WPK file and populate the list widget."""
+
+        self.unload_wpk()
+
+        self.list_widget = self.wpk_list_widget
+        self.wpk_list_widget.setVisible(True)
+        self.npk_list_widget.setVisible(False)
+        self.filter_section.setVisible(False)
+
+        self.setWindowTitle(f"NeoXtractor - {os.path.basename(path)}")
+
+        self.open_wpk_action.setEnabled(False)
+        self.unload_wpk_action.setEnabled(True)
+
+        wpk_file = (
+            WPKFile(path) if path.lower().endswith(".idx") else WPKFile(os.path.splitext(path)[0] + ".idx", path)
+        )
+        self.app.setProperty("wpk_file", wpk_file)
+        self.wpk_list_widget.refresh_wpk_file()
+
+        self.progress_bar.setVisible(False)
+        self.cancel_button.setVisible(False)
+        self.extract_button_widget.setVisible(True)
+        self.preview_widget.clear()
+        get_logger().info("WPK file loaded: %s", path)
+
     def _update_progress(self, value):
         """Update progress bar value from the signal."""
         self.progress_bar.setValue(value)
@@ -452,6 +562,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Restore normal selection behavior and style when loading is complete
         self.list_widget.setDisabled(False)
         self.open_file_action.setEnabled(True)
+        self.open_wpk_action.setEnabled(True)
         self.active_config.setEnabled(True)
         self.progress_bar.setVisible(False)
         self.cancel_button.setVisible(False)
