@@ -1,7 +1,8 @@
-"""Utilities for file format detection in NPK files."""
+"""Utilities for file format detection in NPK and WPK files."""
 
 from core.npk.enums import NPKEntryFileCategories
 from core.npk.class_types import NPKEntryDataFlags
+from core.wpk.class_types import WPKEntryDataFlags
 
 def is_binary(data: bytes):
     """Check if the data is binary.
@@ -22,7 +23,7 @@ def is_binary(data: bytes):
         return True
     return False
 
-def _get_binary_ext(data: bytes, flags: NPKEntryDataFlags):
+def _get_binary_ext(data: bytes, flags: NPKEntryDataFlags | WPKEntryDataFlags):
     """Check for binary file signatures."""
     if data[:3] == b'PVR':
         return 'pvr'
@@ -117,7 +118,7 @@ def _get_binary_ext(data: bytes, flags: NPKEntryDataFlags):
 
     return None
 
-def _get_text_ext(data: bytes, flags: NPKEntryDataFlags):
+def _get_text_ext(data: bytes, flags: NPKEntryDataFlags | WPKEntryDataFlags):
     """Check for text file signatures."""
     if data[:18] == b'from typing import ':
         return 'pyi'
@@ -235,7 +236,7 @@ def _get_text_ext(data: bytes, flags: NPKEntryDataFlags):
 
     return None
 
-def get_ext(data: bytes, flags: NPKEntryDataFlags):
+def get_ext(data: bytes, flags: NPKEntryDataFlags | WPKEntryDataFlags):
     """Get the file extension based on file signature.
 
     Args:
@@ -248,7 +249,8 @@ def get_ext(data: bytes, flags: NPKEntryDataFlags):
     if len(data) == 0:
         return 'empty'
 
-    if flags & NPKEntryDataFlags.TEXT:
+    text_flag = type(flags).TEXT
+    if flags & text_flag:
         ext = _get_text_ext(data, flags)
         if ext:
             return ext

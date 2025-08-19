@@ -14,7 +14,7 @@ from core.wpk.wpk_file import WPKFile
 from core.wpk.class_types import WPKEntry
 from gui.config_manager import ConfigManager
 from gui.models.npk_file_model import NPKFileModel
-from gui.npk_entry_filter import NPKEntryFilter
+from gui.archive_entry_filter import ArchiveEntryFilter
 from gui.settings_manager import SettingsManager
 from gui.utils.config import save_config_manager_to_settings
 from gui.utils.viewer import ALL_VIEWERS, find_best_viewer, get_viewer_display_name
@@ -96,7 +96,7 @@ class MainWindow(QtWidgets.QMainWindow):
             widget.open_entry.connect(open_tab_window_for_entry)
             widget.open_entry_with.connect(open_tab_window_for_entry)
 
-        self.filter = NPKEntryFilter(self.npk_list_widget)
+        self.filter = ArchiveEntryFilter(self.npk_list_widget)
 
         self.filter_section = QtWidgets.QVBoxLayout()
 
@@ -475,7 +475,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.wpk_list_widget.setVisible(False)
         self.filter_section.setVisible(True)
         if self.filter is None:
-            self.filter = NPKEntryFilter(self.npk_list_widget)
+            self.filter = ArchiveEntryFilter(self.npk_list_widget)
 
         self._loading_cancelled = False
 
