@@ -4,6 +4,7 @@ from typing import Type
 from PySide6 import QtWidgets
 
 from core.npk.class_types import NPKEntry
+from core.wpk.class_types import WPKEntry
 from gui.widgets.code_editor import CodeEditor
 from gui.widgets.hex_viewer import HexViewer
 from gui.widgets.mesh_viewer.viewer_widget import MeshViewer
@@ -65,15 +66,16 @@ def set_data_for_viewer(viewer: QtWidgets.QWidget, data: bytes | None, extension
         else:
             viewer.read_bnk(data, extension)
 
-def set_entry_for_viewer(viewer: QtWidgets.QWidget, data: NPKEntry | None):
-    """
-    Set the data for the viewer.
-    
-    :param viewer: The viewer to set the data for.
-    :param data: The NPK entry data to set.
-    """
-    set_data_for_viewer(viewer, data.data if data is not None else None, \
-                         data.extension if data is not None else "dat")
+def set_entry_for_viewer(
+    viewer: QtWidgets.QWidget, data: NPKEntry | WPKEntry | None
+):
+    """Set the entry data for the viewer."""
+
+    set_data_for_viewer(
+        viewer,
+        data.data if data is not None else None,
+        data.extension if data is not None else "dat",
+    )
 
 def get_viewer_display_name(viewer: QtWidgets.QWidget | type) -> str:
     """

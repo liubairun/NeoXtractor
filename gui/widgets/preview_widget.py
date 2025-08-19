@@ -3,9 +3,15 @@
 from typing import cast
 from PySide6 import QtWidgets, QtCore
 
-from core.npk.class_types import NPKEntry, NPKEntryDataFlags
+from core.npk.class_types import NPKEntry
+from core.wpk.class_types import WPKEntry
 from core.utils import format_bytes
-from gui.utils.viewer import ALL_VIEWERS, find_best_viewer, get_viewer_display_name, set_entry_for_viewer
+from gui.utils.viewer import (
+    ALL_VIEWERS,
+    find_best_viewer,
+    get_viewer_display_name,
+    set_entry_for_viewer,
+)
 
 SELECT_ENTRY_TEXT = "Select an entry to preview."
 
@@ -14,7 +20,7 @@ class PreviewWidget(QtWidgets.QWidget):
     A widget that provides a preview of the selected file in the NPK file list.
     """
 
-    _current_entry: NPKEntry | None = None
+    _current_entry: NPKEntry | WPKEntry | None = None
     _previewers: list[QtWidgets.QWidget] = []
 
     def __init__(self, parent: QtWidgets.QWidget | None = None):
@@ -68,7 +74,9 @@ class PreviewWidget(QtWidgets.QWidget):
         self.previewer_selector.addItem(get_viewer_display_name(previewer), previewer)
         self._previewers.append(previewer)
 
-    def _set_data_for_previewer(self, previewer: QtWidgets.QWidget, data: NPKEntry | None):
+    def _set_data_for_previewer(
+        self, previewer: QtWidgets.QWidget, data: NPKEntry | WPKEntry | None
+    ):
         """
         Set the data for the previewer. When errors occur, hide the previewer and show an error message.
         
@@ -114,23 +122,27 @@ class PreviewWidget(QtWidgets.QWidget):
         # Update the previewer with the current entry data
         self._set_data_for_previewer(previewer, self._current_entry)
 
-    def set_file(self, npk_entry: NPKEntry):
-        """
-        Set the file to be previewed and select the appropriate previewer.
-        
-        :param npk_entry: The NPK entry to preview.
-        """
+    def set_file(self, entry: NPKEntry | WPKEntry):
+        """Set the file to be previewed and select the appropriate previewer."""
+
         self.clear()
 
-        self._current_entry = npk_entry
+        self._current_entry = entry
 
-        self.status_label.setText(f"Signature: {hex(npk_entry.file_signature)} | " +
-                                  f"Size: {format_bytes(npk_entry.file_original_length)}")
+        if hasattr(entry, "file_signature"):
+            self.status_label.setText(
+                f"Signature: {hex(getattr(entry, 'file_signature'))} | "
+                f"Size: {format_bytes(entry.file_original_length)}"
+            )
+        else:
+            self.status_label.setText(
+                f"Size: {format_bytes(entry.file_original_length)}"
+            )
 
         self.set_control_bar_visible(True)
 
-        # Find the best previewer for the given NPK entry
-        best_previewer = find_best_viewer(npk_entry.extension, bool(npk_entry.data_flags & NPKEntryDataFlags.TEXT))
+        text_flag = type(entry.data_flags).TEXT
+        best_previewer = find_best_viewer(entry.extension, bool(entry.data_flags & text_flag))
         for previewer in self._previewers:
             if isinstance(previewer, best_previewer):
                 self.select_previewer(previewer)
